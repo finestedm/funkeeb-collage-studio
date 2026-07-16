@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FunkeeB Collage Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@600;700;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="./" aria-label="FunkeeB Collage Studio">
+          <img src="./assets/transparent-logo-v3.svg" alt="FunkeeB">
+        </a>
+        <div class="topbar-copy">
+          <span>Image composer</span>
+          <h1>FunkeeB collage studio</h1>
+        </div>
+      </header>
+
+      <section class="workspace" aria-label="FunkeeB image composer">
+        <aside class="controls" aria-label="Ustawienia">
+          <section class="panel upload-panel">
+            <div class="panel-heading">
+              <span>01</span>
+              <h2>Zdjecia</h2>
+            </div>
+            <div id="dropZone" class="dropzone">
+              <input id="fileInput" type="file" accept="image/*" multiple>
+              <label class="dropzone-action" for="fileInput">Wybierz zdjecia</label>
+              <output id="imageMeta">0 plikow</output>
+            </div>
+            <div id="thumbList" class="thumb-list" aria-live="polite"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <span>02</span>
+              <h2>Tekst</h2>
+            </div>
+            <label class="field">
+              <span>Tytul</span>
+              <input id="titleInput" type="text" value="FunkeeB build" maxlength="72">
+            </label>
+            <label class="field">
+              <span>Podtytul</span>
+              <input id="subtitleInput" type="text" value="Custom keyboard photo set" maxlength="110">
+            </label>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <span>03</span>
+              <h2>Uklad</h2>
+            </div>
+            <div class="segmented" role="group" aria-label="Uklad obrazu">
+              <button type="button" class="segment is-active" data-mode="grid" aria-pressed="true">Siatka</button>
+              <button type="button" class="segment" data-mode="collage" aria-pressed="false">Kolaz</button>
+              <button type="button" class="segment" data-mode="cards" aria-pressed="false">Karty</button>
+            </div>
+            <label class="field">
+              <span>Format</span>
+              <select id="ratioSelect">
+                <option value="square">Square 1080 x 1080</option>
+                <option value="portrait">Post 1080 x 1350</option>
+                <option value="wide">Wide 1600 x 900</option>
+                <option value="story">Story 1080 x 1920</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Motyw</span>
+              <select id="themeSelect">
+                <option value="dark">Dark FunkeeB</option>
+                <option value="light">Light Precision</option>
+              </select>
+            </label>
+            <label class="field range-field">
+              <span>Odstep <output id="gapValue">28 px</output></span>
+              <input id="gapInput" type="range" min="8" max="52" step="2" value="28">
+            </label>
+          </section>
+
+          <section class="panel actions-panel">
+            <button id="downloadButton" type="button" class="primary-action">Pobierz PNG</button>
+            <button id="clearButton" type="button" class="secondary-action">Wyczysc</button>
+          </section>
+        </aside>
+
+        <section class="stage" aria-label="Podglad">
+          <div class="stage-bar">
+            <strong>Podglad</strong>
+            <output id="canvasSize">1080 x 1080</output>
+          </div>
+          <div class="canvas-frame">
+            <canvas id="previewCanvas" width="1080" height="1080" aria-label="Podglad wygenerowanego obrazu"></canvas>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>
