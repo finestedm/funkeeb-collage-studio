@@ -19,7 +19,8 @@ Push this folder to a repository and set GitHub Pages to serve it from the repo 
 
 - uploads multiple local photos
 - renders a FunkeeB-branded PNG on canvas
-- adds the FunkeeB logo at the top
-- supports title and subtitle text
+- uses the light FunkeeB visual style
+- adds the FunkeeB icon and HTML wordmark at the top of the app
+- supports editable title and subtitle text for every photo
 - supports grid, collage, and card layouts
 - maps 4 photos to `2 x 2` and 6 photos to `3 x 2`

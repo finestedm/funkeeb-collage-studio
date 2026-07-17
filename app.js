@@ -5,45 +5,26 @@ const ratios = {
   story: [1080, 1920],
 };
 
-const palettes = {
-  dark: {
-    background: "#111317",
-    surface: "#151820",
-    surfaceLow: "#1a1d23",
-    surfaceHigh: "#232733",
-    ink: "#e8edf3",
-    muted: "#9ba9bd",
-    soft: "#c0cad8",
-    border: "rgba(141, 167, 206, 0.34)",
-    blue: "#8da7ce",
-    orange: "#f6732c",
-    lime: "#b8d250",
-    shadow: "rgba(0, 0, 0, 0.34)",
-  },
-  light: {
-    background: "#f9f9ff",
-    surface: "#ffffff",
-    surfaceLow: "#f0f3ff",
-    surfaceHigh: "#e5e9fb",
-    ink: "#1a1c1d",
-    muted: "#5d5f5f",
-    soft: "#46474a",
-    border: "rgba(26, 28, 29, 0.16)",
-    blue: "#4b6f9c",
-    orange: "#f6732c",
-    lime: "#7c9900",
-    shadow: "rgba(26, 28, 29, 0.12)",
-  },
+const palette = {
+  background: "#f9f9ff",
+  surface: "#ffffff",
+  surfaceLow: "#f0f3ff",
+  surfaceHigh: "#e5e9fb",
+  ink: "#1a1c1d",
+  muted: "#5d5f5f",
+  soft: "#46474a",
+  border: "rgba(26, 28, 29, 0.16)",
+  blue: "#4b6f9c",
+  orange: "#f6732c",
+  lime: "#7c9900",
+  shadow: "rgba(26, 28, 29, 0.12)",
 };
 
 const state = {
   images: [],
   mode: "grid",
   ratio: "square",
-  theme: "dark",
   gap: 28,
-  title: "FunkeeB build",
-  subtitle: "Custom keyboard photo set",
   forceTextLogo: false,
 };
 
@@ -53,10 +34,7 @@ const elements = {
   dropZone: document.getElementById("dropZone"),
   imageMeta: document.getElementById("imageMeta"),
   thumbList: document.getElementById("thumbList"),
-  titleInput: document.getElementById("titleInput"),
-  subtitleInput: document.getElementById("subtitleInput"),
   ratioSelect: document.getElementById("ratioSelect"),
-  themeSelect: document.getElementById("themeSelect"),
   gapInput: document.getElementById("gapInput"),
   gapValue: document.getElementById("gapValue"),
   canvasSize: document.getElementById("canvasSize"),
@@ -107,23 +85,8 @@ elements.dropZone.addEventListener("drop", (event) => {
   addFiles(event.dataTransfer.files);
 });
 
-elements.titleInput.addEventListener("input", () => {
-  state.title = elements.titleInput.value.trim();
-  render();
-});
-
-elements.subtitleInput.addEventListener("input", () => {
-  state.subtitle = elements.subtitleInput.value.trim();
-  render();
-});
-
 elements.ratioSelect.addEventListener("change", () => {
   state.ratio = elements.ratioSelect.value;
-  render();
-});
-
-elements.themeSelect.addEventListener("change", () => {
-  state.theme = elements.themeSelect.value;
   render();
 });
 
@@ -144,6 +107,7 @@ elements.modeButtons.forEach((button) => {
 elements.downloadButton.addEventListener("click", () => {
   render();
   let href = "";
+
   try {
     href = elements.canvas.toDataURL("image/png");
   } catch (error) {
@@ -154,7 +118,7 @@ elements.downloadButton.addEventListener("click", () => {
   }
 
   const link = document.createElement("a");
-  link.download = `${slugify(state.title || "funkeeb-collage")}.png`;
+  link.download = "funkeeb-collage.png";
   link.href = href;
   link.click();
 });
@@ -171,9 +135,12 @@ function addFiles(fileList) {
 
   files.forEach((file) => {
     const url = URL.createObjectURL(file);
+    const defaultTitle = makeDefaultTitle(file.name);
     const item = {
       id: createId(),
       name: file.name,
+      title: defaultTitle,
+      subtitle: "FunkeeB keyboard detail",
       url,
       image: new Image(),
       ready: false,
@@ -219,8 +186,18 @@ function syncImages() {
     thumb.src = item.url;
     thumb.alt = "";
 
-    const label = document.createElement("span");
-    label.textContent = item.name;
+    const body = document.createElement("div");
+    body.className = "thumb-body";
+
+    const titleRow = document.createElement("div");
+    titleRow.className = "thumb-title-row";
+
+    const filename = document.createElement("span");
+    filename.className = "thumb-filename";
+    filename.textContent = item.name;
+
+    const actions = document.createElement("div");
+    actions.className = "thumb-actions";
 
     const up = document.createElement("button");
     up.type = "button";
@@ -239,9 +216,43 @@ function syncImages() {
     remove.textContent = "Usun";
     remove.addEventListener("click", () => removeImage(item.id));
 
-    row.append(thumb, label, up, down, remove);
+    actions.append(up, down, remove);
+    titleRow.append(filename, actions);
+
+    const fields = document.createElement("div");
+    fields.className = "thumb-fields";
+    fields.append(
+      createCaptionField("Title", item.title, (value) => {
+        item.title = value;
+        render();
+      }),
+      createCaptionField("Subtitle", item.subtitle, (value) => {
+        item.subtitle = value;
+        render();
+      }),
+    );
+
+    body.append(titleRow, fields);
+    row.append(thumb, body);
     elements.thumbList.append(row);
   });
+}
+
+function createCaptionField(labelText, value, onInput) {
+  const label = document.createElement("label");
+  label.className = "field";
+
+  const caption = document.createElement("span");
+  caption.textContent = labelText;
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.maxLength = labelText === "Title" ? 56 : 88;
+  input.value = value || "";
+  input.addEventListener("input", () => onInput(input.value.trim()));
+
+  label.append(caption, input);
+  return label;
 }
 
 function moveImage(index, direction) {
@@ -264,18 +275,17 @@ function removeImage(id) {
 
 function render() {
   const [width, height] = ratios[state.ratio];
-  const palette = palettes[state.theme];
   elements.canvas.width = width;
   elements.canvas.height = height;
   elements.canvasSize.textContent = `${width} x ${height}`;
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
 
-  drawBackground(context, width, height, palette);
+  drawBackground(context, width, height);
 
   const pad = clamp(Math.round(width * 0.055), 44, 92);
-  const contentTop = drawHeader(context, width, height, pad, palette);
-  const bottomPad = Math.round(pad * 0.8);
+  const contentTop = drawHeader(context, width, height, pad);
+  const bottomPad = Math.round(pad * 0.55);
   const layoutRect = {
     x: pad,
     y: contentTop,
@@ -287,24 +297,22 @@ function render() {
   const gap = Math.round(state.gap * (width / 1080));
 
   if (state.mode === "collage") {
-    drawCollage(context, layoutRect, items, gap, palette);
+    drawCollage(context, layoutRect, items, gap);
   } else {
-    drawGrid(context, layoutRect, items, gap, palette, state.mode === "cards");
+    drawGrid(context, layoutRect, items, gap, state.mode === "cards");
   }
-
-  drawFooterMark(context, width, height, pad, palette);
 }
 
-function drawBackground(ctx, width, height, palette) {
+function drawBackground(ctx, width, height) {
   const gradient = ctx.createLinearGradient(0, 0, width, height);
   gradient.addColorStop(0, palette.background);
-  gradient.addColorStop(0.58, palette.surfaceLow);
+  gradient.addColorStop(0.62, palette.surfaceLow);
   gradient.addColorStop(1, palette.background);
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 
   ctx.save();
-  ctx.globalAlpha = state.theme === "dark" ? 0.4 : 0.28;
+  ctx.globalAlpha = 0.26;
   ctx.strokeStyle = palette.border;
   ctx.lineWidth = Math.max(1, width * 0.0015);
 
@@ -315,7 +323,7 @@ function drawBackground(ctx, width, height, palette) {
     ctx.stroke();
   }
 
-  ctx.globalAlpha = 0.22;
+  ctx.globalAlpha = 0.2;
   ctx.fillStyle = palette.orange;
   ctx.fillRect(0, Math.round(height * 0.12), width, Math.max(8, height * 0.008));
   ctx.fillStyle = palette.blue;
@@ -323,55 +331,15 @@ function drawBackground(ctx, width, height, palette) {
   ctx.restore();
 }
 
-function drawHeader(ctx, width, height, pad, palette) {
-  let y = Math.round(pad * 0.72);
-  const logoWidth = clamp(Math.round(width * 0.26), 210, 360);
-  const logoHeight = Math.round(logoWidth / 4.49);
-  const logoX = Math.round((width - logoWidth) / 2);
+function drawHeader(ctx, width, height, pad) {
+  let y = Math.round(pad * 0.58);
+  const logoHeight = clamp(Math.round(width * 0.058), 54, 82);
+  const markWidth = measureLogoMark(ctx, logoHeight);
+  const logoX = Math.round((width - markWidth) / 2);
 
-  if (logoReady && !logoFailed && !state.forceTextLogo) {
-    ctx.drawImage(logo, logoX, y, logoWidth, logoHeight);
-  } else {
-    drawWordmark(ctx, width / 2, y + logoHeight * 0.8, logoHeight * 0.85, palette);
-  }
+  drawLogoMark(ctx, logoX, y, logoHeight);
 
   y += logoHeight + Math.round(pad * 0.42);
-
-  if (state.title) {
-    const titleSize = clamp(Math.round(width * 0.06), 44, 92);
-    const titleHeight = drawWrappedText({
-      ctx,
-      text: state.title,
-      x: width / 2,
-      y,
-      maxWidth: width - pad * 2.6,
-      maxLines: 2,
-      size: titleSize,
-      weight: 900,
-      color: palette.ink,
-      family: "\"Hanken Grotesk\", Inter, sans-serif",
-      align: "center",
-    });
-    y += titleHeight + Math.round(pad * 0.14);
-  }
-
-  if (state.subtitle) {
-    const subtitleSize = clamp(Math.round(width * 0.024), 24, 36);
-    const subtitleHeight = drawWrappedText({
-      ctx,
-      text: state.subtitle,
-      x: width / 2,
-      y,
-      maxWidth: width - pad * 2.4,
-      maxLines: 2,
-      size: subtitleSize,
-      weight: 600,
-      color: palette.soft,
-      family: "Inter, sans-serif",
-      align: "center",
-    });
-    y += subtitleHeight + Math.round(pad * 0.28);
-  }
 
   const lineWidth = clamp(Math.round(width * 0.18), 150, 260);
   ctx.save();
@@ -381,75 +349,199 @@ function drawHeader(ctx, width, height, pad, palette) {
   ctx.fillRect(Math.round((width - lineWidth) / 2), y + Math.max(5, width * 0.005), Math.round(lineWidth * 0.42), Math.max(3, width * 0.003));
   ctx.restore();
 
-  return y + Math.round(pad * 0.72);
+  return y + Math.round(pad * 0.58);
 }
 
-function drawGrid(ctx, rect, items, gap, palette, cardMode) {
+function measureLogoMark(ctx, height) {
+  const iconWidth = Math.round(height * 1.66);
+  const gap = Math.round(height * 0.18);
+  const fontSize = Math.round(height * 0.76);
+  ctx.save();
+  ctx.font = `800 ${fontSize}px Poppins, sans-serif`;
+  const textWidth = ctx.measureText("FunkeeB").width;
+  ctx.restore();
+  return iconWidth + gap + textWidth;
+}
+
+function drawLogoMark(ctx, x, y, height) {
+  const iconWidth = Math.round(height * 1.66);
+  const gap = Math.round(height * 0.18);
+  const fontSize = Math.round(height * 0.76);
+  const textY = y + Math.round(height * 0.78);
+
+  if (logoReady && !logoFailed && !state.forceTextLogo) {
+    const sourceWidth = Math.round(logo.naturalWidth * 0.37);
+    ctx.drawImage(logo, 0, 0, sourceWidth, logo.naturalHeight, x, y, iconWidth, height);
+  } else {
+    drawFallbackIcon(ctx, x, y, iconWidth, height);
+  }
+
+  ctx.save();
+  ctx.font = `800 ${fontSize}px Poppins, sans-serif`;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = palette.blue;
+  ctx.fillText("Funkee", x + iconWidth + gap, textY);
+  ctx.fillStyle = palette.orange;
+  ctx.fillText("B", x + iconWidth + gap + ctx.measureText("Funkee").width, textY);
+  ctx.restore();
+}
+
+function drawFallbackIcon(ctx, x, y, width, height) {
+  ctx.save();
+  ctx.fillStyle = "rgba(75, 111, 156, 0.14)";
+  roundRect(ctx, x, y + height * 0.12, width, height * 0.72, height * 0.14);
+  ctx.fill();
+  ctx.strokeStyle = palette.blue;
+  ctx.lineWidth = Math.max(2, height * 0.04);
+  roundRect(ctx, x, y + height * 0.12, width, height * 0.72, height * 0.14);
+  ctx.stroke();
+  ctx.fillStyle = palette.orange;
+  ctx.fillRect(x + width * 0.18, y + height * 0.36, width * 0.64, height * 0.1);
+  ctx.restore();
+}
+
+function drawGrid(ctx, rect, items, gap, cardMode) {
   const slots = createGridSlots(rect, items.length, gap);
   slots.forEach((slot, index) => {
     if (cardMode) {
-      drawCardTile(ctx, items[index], slot, palette);
+      drawCardTile(ctx, items[index], slot);
     } else {
-      drawImageTile(ctx, items[index], slot, palette, 6);
+      drawCaptionedTile(ctx, items[index], slot, 6, false);
     }
   });
 }
 
-function drawCollage(ctx, rect, items, gap, palette) {
+function drawCollage(ctx, rect, items, gap) {
   const slots = createCollageSlots(rect, items.length, gap);
   slots.forEach((slot, index) => {
-    drawImageTile(ctx, items[index], slot, palette, index === 0 ? 8 : 6);
+    drawCaptionedTile(ctx, items[index], slot, index === 0 ? 8 : 6, false);
   });
 }
 
-function drawImageTile(ctx, item, rect, palette, radius) {
-  ctx.save();
-  ctx.fillStyle = palette.surfaceHigh;
-  roundRect(ctx, rect.x, rect.y, rect.w, rect.h, radius);
-  ctx.fill();
-  ctx.clip();
-
-  if (item && item.ready) {
-    drawImageCover(ctx, item.image, rect.x, rect.y, rect.w, rect.h);
-  } else {
-    drawPlaceholder(ctx, rect, palette, item);
-  }
-
-  ctx.restore();
-  drawStroke(ctx, rect, palette.border, radius);
-}
-
-function drawCardTile(ctx, item, rect, palette) {
-  const inset = clamp(Math.round(Math.min(rect.w, rect.h) * 0.055), 12, 24);
-  const imageRect = {
-    x: rect.x + inset,
-    y: rect.y + inset,
-    w: rect.w - inset * 2,
-    h: rect.h - inset * 2,
-  };
-
+function drawCardTile(ctx, item, rect) {
   ctx.save();
   ctx.shadowColor = palette.shadow;
-  ctx.shadowBlur = Math.max(14, rect.w * 0.035);
+  ctx.shadowBlur = Math.max(16, rect.w * 0.04);
   ctx.shadowOffsetY = Math.max(8, rect.h * 0.02);
   ctx.fillStyle = palette.surface;
   roundRect(ctx, rect.x, rect.y, rect.w, rect.h, 6);
   ctx.fill();
   ctx.restore();
 
-  drawImageTile(ctx, item, imageRect, palette, 4);
-
-  ctx.save();
-  ctx.fillStyle = palette.orange;
-  ctx.fillRect(imageRect.x, imageRect.y + imageRect.h + Math.max(4, inset * 0.3), Math.round(imageRect.w * 0.34), Math.max(4, inset * 0.22));
-  ctx.fillStyle = palette.blue;
-  ctx.fillRect(imageRect.x + Math.round(imageRect.w * 0.36), imageRect.y + imageRect.h + Math.max(4, inset * 0.3), Math.round(imageRect.w * 0.18), Math.max(4, inset * 0.22));
-  ctx.restore();
-
+  const inset = clamp(Math.round(Math.min(rect.w, rect.h) * 0.045), 12, 24);
+  drawCaptionedTile(
+    ctx,
+    item,
+    {
+      x: rect.x + inset,
+      y: rect.y + inset,
+      w: rect.w - inset * 2,
+      h: rect.h - inset * 2,
+    },
+    4,
+    true,
+  );
   drawStroke(ctx, rect, palette.border, 6);
 }
 
-function drawPlaceholder(ctx, rect, palette, item) {
+function drawCaptionedTile(ctx, item, rect, radius, isInsetCard) {
+  const caption = getCaptionMetrics(rect, item);
+  const imageRect = {
+    x: rect.x,
+    y: rect.y,
+    w: rect.w,
+    h: Math.max(rect.h - caption.height, rect.h * 0.46),
+  };
+  const captionRect = {
+    x: rect.x,
+    y: imageRect.y + imageRect.h,
+    w: rect.w,
+    h: rect.h - imageRect.h,
+  };
+
+  ctx.save();
+  ctx.fillStyle = palette.surface;
+  roundRect(ctx, rect.x, rect.y, rect.w, rect.h, radius);
+  ctx.fill();
+  ctx.clip();
+
+  if (item && item.ready) {
+    drawImageCover(ctx, item.image, imageRect.x, imageRect.y, imageRect.w, imageRect.h);
+  } else {
+    drawPlaceholder(ctx, imageRect, item);
+  }
+
+  ctx.fillStyle = isInsetCard ? palette.surface : "rgba(255, 255, 255, 0.94)";
+  ctx.fillRect(captionRect.x, captionRect.y, captionRect.w, captionRect.h);
+  drawCaptionText(ctx, captionRect, item, caption);
+
+  ctx.restore();
+  drawStroke(ctx, rect, palette.border, radius);
+}
+
+function getCaptionMetrics(rect, item) {
+  const titleSize = clamp(Math.round(rect.w * 0.05), 18, 32);
+  const subtitleSize = clamp(Math.round(rect.w * 0.034), 13, 21);
+  const pad = clamp(Math.round(rect.w * 0.035), 12, 22);
+  const title = getItemTitle(item);
+  const subtitle = getItemSubtitle(item);
+  const titleHeight = title ? Math.round(titleSize * 1.16) : 0;
+  const subtitleHeight = subtitle ? Math.round(subtitleSize * 1.24) : 0;
+  const gap = title && subtitle ? Math.max(4, Math.round(subtitleSize * 0.25)) : 0;
+  const desired = pad * 2 + titleHeight + gap + subtitleHeight;
+  const maxHeight = Math.round(rect.h * 0.38);
+
+  return {
+    height: clamp(desired, Math.round(rect.h * 0.18), maxHeight),
+    pad,
+    titleSize,
+    subtitleSize,
+  };
+}
+
+function drawCaptionText(ctx, rect, item, metrics) {
+  const title = getItemTitle(item);
+  const subtitle = getItemSubtitle(item);
+  const x = rect.x + metrics.pad;
+  const maxWidth = rect.w - metrics.pad * 2;
+  let y = rect.y + metrics.pad;
+
+  if (title) {
+    const titleHeight = drawWrappedText({
+      ctx,
+      text: title,
+      x,
+      y,
+      maxWidth,
+      maxLines: 1,
+      size: metrics.titleSize,
+      weight: 800,
+      color: palette.ink,
+      family: "Poppins, sans-serif",
+      align: "left",
+    });
+    y += titleHeight + Math.max(4, Math.round(metrics.subtitleSize * 0.22));
+  }
+
+  if (subtitle) {
+    drawWrappedText({
+      ctx,
+      text: subtitle,
+      x,
+      y,
+      maxWidth,
+      maxLines: 1,
+      size: metrics.subtitleSize,
+      weight: 500,
+      color: palette.soft,
+      family: "Poppins, sans-serif",
+      align: "left",
+    });
+  }
+}
+
+function drawPlaceholder(ctx, rect, item) {
   const gradient = ctx.createLinearGradient(rect.x, rect.y, rect.x + rect.w, rect.y + rect.h);
   gradient.addColorStop(0, palette.surfaceHigh);
   gradient.addColorStop(1, palette.surfaceLow);
@@ -469,62 +561,30 @@ function drawPlaceholder(ctx, rect, palette, item) {
   ctx.restore();
 
   const label = item && item.error ? "Blad pliku" : "Zdjecie";
-  ctx.font = `800 ${clamp(Math.round(rect.w * 0.055), 18, 34)}px Inter, sans-serif`;
+  ctx.font = `800 ${clamp(Math.round(rect.w * 0.055), 18, 34)}px Poppins, sans-serif`;
   ctx.fillStyle = palette.soft;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2);
 }
 
-function drawFooterMark(ctx, width, height, pad, palette) {
-  ctx.save();
-  ctx.font = `800 ${clamp(Math.round(width * 0.014), 14, 20)}px Inter, sans-serif`;
-  const main = "funkee";
-  const accent = "B";
-  const mainWidth = ctx.measureText(main).width;
-  const accentWidth = ctx.measureText(accent).width;
-  const start = width - pad - mainWidth - accentWidth;
-  ctx.fillStyle = palette.muted;
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText(main, start, height - Math.round(pad * 0.34));
-  ctx.fillStyle = palette.orange;
-  ctx.fillText(accent, start + mainWidth, height - Math.round(pad * 0.34));
-  ctx.restore();
-}
-
-function drawWordmark(ctx, x, y, size, palette) {
-  ctx.save();
-  ctx.font = `900 ${size}px "Hanken Grotesk", Inter, sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
-  const main = "Funkee";
-  const accent = "B";
-  const mainWidth = ctx.measureText(main).width;
-  const accentWidth = ctx.measureText(accent).width;
-  const start = x - (mainWidth + accentWidth) / 2;
-  ctx.fillStyle = palette.blue;
-  ctx.fillText(main, start + mainWidth / 2, y);
-  ctx.fillStyle = palette.orange;
-  ctx.fillText(accent, start + mainWidth + accentWidth / 2, y);
-  ctx.restore();
-}
-
 function drawWrappedText(options) {
   const { ctx, text, x, y, maxWidth, maxLines, weight, color, family, align } = options;
+  if (!text) return 0;
+
   let size = options.size;
   let lines = [];
 
-  while (size >= 16) {
+  while (size >= 11) {
     ctx.font = `${weight} ${size}px ${family}`;
     lines = wrapText(ctx, text, maxWidth);
     const widest = Math.max(...lines.map((line) => ctx.measureText(line).width), 0);
     if (lines.length <= maxLines && widest <= maxWidth) break;
-    size -= 2;
+    size -= 1;
   }
 
   lines = lines.slice(0, maxLines);
-  const lineHeight = Math.round(size * 1.08);
+  const lineHeight = Math.round(size * 1.16);
 
   ctx.save();
   ctx.font = `${weight} ${size}px ${family}`;
@@ -536,7 +596,7 @@ function drawWrappedText(options) {
   });
   ctx.restore();
 
-  return Math.max(lineHeight, lines.length * lineHeight);
+  return lines.length * lineHeight;
 }
 
 function wrapText(ctx, text, maxWidth) {
@@ -676,21 +736,29 @@ function createPlaceholders() {
   return Array.from({ length: 4 }, (_, index) => ({
     id: `placeholder-${index}`,
     name: `Zdjecie ${index + 1}`,
+    title: `Keyboard angle ${index + 1}`,
+    subtitle: "Add photo title and subtitle",
     ready: false,
   }));
+}
+
+function getItemTitle(item) {
+  return (item && item.title ? item.title : "").trim();
+}
+
+function getItemSubtitle(item) {
+  return (item && item.subtitle ? item.subtitle : "").trim();
+}
+
+function makeDefaultTitle(fileName) {
+  const base = fileName.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim();
+  if (!base) return "Keyboard detail";
+  return base.replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function createId() {
   if (crypto.randomUUID) return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function slugify(value) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80) || "funkeeb-collage";
 }
 
 function clamp(value, min, max) {

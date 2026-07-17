@@ -6,14 +6,19 @@
     <title>FunkeeB Collage Studio</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@600;700;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body>
     <main class="app-shell">
       <header class="topbar">
         <a class="brand" href="./" aria-label="FunkeeB Collage Studio">
-          <img src="./assets/transparent-logo-v3.svg" alt="FunkeeB">
+          <span class="brand-icon" aria-hidden="true">
+            <img src="./assets/transparent-logo-v3.svg" alt="">
+          </span>
+          <span class="brand-wordmark" aria-hidden="true">
+            <span>Funkee</span><strong>B</strong>
+          </span>
         </a>
         <div class="topbar-copy">
           <span>Image composer</span>
@@ -26,7 +31,7 @@
           <section class="panel upload-panel">
             <div class="panel-heading">
               <span>01</span>
-              <h2>Zdjecia</h2>
+              <h2>Zdjecia i podpisy</h2>
             </div>
             <div id="dropZone" class="dropzone">
               <input id="fileInput" type="file" accept="image/*" multiple>
@@ -39,21 +44,6 @@
           <section class="panel">
             <div class="panel-heading">
               <span>02</span>
-              <h2>Tekst</h2>
-            </div>
-            <label class="field">
-              <span>Tytul</span>
-              <input id="titleInput" type="text" value="FunkeeB build" maxlength="72">
-            </label>
-            <label class="field">
-              <span>Podtytul</span>
-              <input id="subtitleInput" type="text" value="Custom keyboard photo set" maxlength="110">
-            </label>
-          </section>
-
-          <section class="panel">
-            <div class="panel-heading">
-              <span>03</span>
               <h2>Uklad</h2>
             </div>
             <div class="segmented" role="group" aria-label="Uklad obrazu">
@@ -68,13 +58,6 @@
                 <option value="portrait">Post 1080 x 1350</option>
                 <option value="wide">Wide 1600 x 900</option>
                 <option value="story">Story 1080 x 1920</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Motyw</span>
-              <select id="themeSelect">
-                <option value="dark">Dark FunkeeB</option>
-                <option value="light">Light Precision</option>
               </select>
             </label>
             <label class="field range-field">
