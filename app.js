@@ -155,6 +155,7 @@ function addFiles(fileList) {
       subtitle: getStoredText(storedImage, "subtitle", "FunkeeB keyboard detail"),
       focalX: normalizePercent(storedImage.focalX),
       focalY: normalizePercent(storedImage.focalY),
+      rotation: normalizeRotation(storedImage.rotation),
       url,
       image: new Image(),
       ready: false,
@@ -200,6 +201,7 @@ function saveSettings() {
       subtitle: item.subtitle || "",
       focalX: normalizePercent(item.focalX),
       focalY: normalizePercent(item.focalY),
+      rotation: normalizeRotation(item.rotation),
     };
   });
 
@@ -254,10 +256,15 @@ function syncImages() {
     const row = document.createElement("div");
     row.className = "thumb-item";
 
+    const thumbFrame = document.createElement("div");
+    thumbFrame.className = "thumb-preview";
+
     const thumb = document.createElement("img");
     thumb.src = item.url;
     thumb.alt = "";
     thumb.style.objectPosition = `${item.focalX}% ${item.focalY}%`;
+    thumb.style.transform = `rotate(${normalizeRotation(item.rotation)}deg)`;
+    thumbFrame.append(thumb);
 
     const body = document.createElement("div");
     body.className = "thumb-body";
@@ -322,11 +329,17 @@ function syncImages() {
         render();
         saveSettings();
       }),
+      createRotationField(item.rotation, (value) => {
+        item.rotation = value;
+        thumb.style.transform = `rotate(${item.rotation}deg)`;
+        render();
+        saveSettings();
+      }),
     );
     fields.append(cropFields);
 
     body.append(titleRow, fields);
-    row.append(thumb, body);
+    row.append(thumbFrame, body);
     elements.thumbList.append(row);
   });
 }
@@ -371,6 +384,27 @@ function createRangeField(labelText, value, onInput) {
   });
 
   label.append(caption, input);
+  return label;
+}
+
+function createRotationField(value, onChange) {
+  const label = document.createElement("label");
+  label.className = "field";
+
+  const caption = document.createElement("span");
+  caption.textContent = "Obrot";
+
+  const select = document.createElement("select");
+  [0, 90, 180, 270].forEach((rotation) => {
+    const option = document.createElement("option");
+    option.value = String(rotation);
+    option.textContent = `${rotation} deg`;
+    select.append(option);
+  });
+  select.value = String(normalizeRotation(value));
+  select.addEventListener("change", () => onChange(Number(select.value)));
+
+  label.append(caption, select);
   return label;
 }
 
@@ -588,7 +622,17 @@ function drawCaptionedTile(ctx, item, rect, radius, isInsetCard) {
   ctx.clip();
 
   if (item && item.ready) {
-    drawImageCover(ctx, item.image, imageRect.x, imageRect.y, imageRect.w, imageRect.h, item.focalX, item.focalY);
+    drawImageCover(
+      ctx,
+      item.image,
+      imageRect.x,
+      imageRect.y,
+      imageRect.w,
+      imageRect.h,
+      item.focalX,
+      item.focalY,
+      item.rotation,
+    );
   } else {
     drawPlaceholder(ctx, imageRect, item);
   }
@@ -810,23 +854,29 @@ function getAutoGrid(count) {
   return { cols, rows: Math.ceil(count / cols) };
 }
 
-function drawImageCover(ctx, image, x, y, width, height, focalX = 50, focalY = 50) {
-  const imageRatio = image.naturalWidth / image.naturalHeight;
-  const targetRatio = width / height;
-  let sourceWidth = image.naturalWidth;
-  let sourceHeight = image.naturalHeight;
-  let sourceX = 0;
-  let sourceY = 0;
+function drawImageCover(ctx, image, x, y, width, height, focalX = 50, focalY = 50, rotation = 0) {
+  const normalizedRotation = normalizeRotation(rotation);
+  const quarterTurn = normalizedRotation === 90 || normalizedRotation === 270;
+  const sourceWidth = image.naturalWidth;
+  const sourceHeight = image.naturalHeight;
+  const rotatedWidth = quarterTurn ? sourceHeight : sourceWidth;
+  const rotatedHeight = quarterTurn ? sourceWidth : sourceHeight;
+  const scale = Math.max(width / rotatedWidth, height / rotatedHeight);
+  const drawWidth = sourceWidth * scale;
+  const drawHeight = sourceHeight * scale;
+  const frameWidth = rotatedWidth * scale;
+  const frameHeight = rotatedHeight * scale;
+  const offsetX = (0.5 - clamp(focalX / 100, 0, 1)) * Math.max(0, frameWidth - width);
+  const offsetY = (0.5 - clamp(focalY / 100, 0, 1)) * Math.max(0, frameHeight - height);
 
-  if (imageRatio > targetRatio) {
-    sourceWidth = image.naturalHeight * targetRatio;
-    sourceX = (image.naturalWidth - sourceWidth) * clamp(focalX / 100, 0, 1);
-  } else {
-    sourceHeight = image.naturalWidth / targetRatio;
-    sourceY = (image.naturalHeight - sourceHeight) * clamp(focalY / 100, 0, 1);
-  }
-
-  ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, x, y, width, height);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, width, height);
+  ctx.clip();
+  ctx.translate(x + width / 2 + offsetX, y + height / 2 + offsetY);
+  ctx.rotate((normalizedRotation * Math.PI) / 180);
+  ctx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+  ctx.restore();
 }
 
 function drawStroke(ctx, rect, color, radius) {
@@ -861,6 +911,7 @@ function createPlaceholders() {
     subtitle: "Add photo title and subtitle",
     focalX: 50,
     focalY: 50,
+    rotation: 0,
     ready: false,
   }));
 }
@@ -900,6 +951,13 @@ function normalizeGap(value) {
 function normalizePercent(value) {
   const nextValue = Number(value);
   return Number.isFinite(nextValue) ? clamp(Math.round(nextValue), 0, 100) : 50;
+}
+
+function normalizeRotation(value) {
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue)) return 0;
+  const snapped = Math.round(nextValue / 90) * 90;
+  return ((snapped % 360) + 360) % 360;
 }
 
 function getStoredText(source, key, fallback) {
