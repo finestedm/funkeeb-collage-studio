@@ -94,7 +94,7 @@ canvas {
 
 .brand-icon {
   display: block;
-  width: 60px;
+  width: 75px;
   height: 36px;
   overflow: hidden;
   flex: 0 0 auto;
@@ -334,6 +334,12 @@ canvas {
   gap: 7px;
 }
 
+.thumb-crop-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
 .field {
   display: grid;
   gap: 7px;
@@ -405,7 +411,8 @@ canvas {
   font-weight: 800;
 }
 
-.field input[type="range"] {
+.field input[type="range"],
+.thumb-crop-fields input[type="range"] {
   min-height: 28px;
   accent-color: var(--orange);
   padding: 0;
@@ -504,7 +511,7 @@ canvas {
   }
 
   .brand-icon {
-    width: 54px;
+    width: 66px;
     height: 32px;
   }
 
@@ -528,6 +535,10 @@ canvas {
 
   .thumb-actions {
     justify-content: flex-start;
+  }
+
+  .thumb-crop-fields {
+    grid-template-columns: 1fr;
   }
 
   .actions-panel {

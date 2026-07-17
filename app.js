@@ -20,6 +20,9 @@ const palette = {
   shadow: "rgba(26, 28, 29, 0.12)",
 };
 
+const logoIconAspect = 880 / 424;
+const logoIconSourceRatio = 880 / 1903.9945;
+
 const state = {
   images: [],
   mode: "grid",
@@ -141,6 +144,8 @@ function addFiles(fileList) {
       name: file.name,
       title: defaultTitle,
       subtitle: "FunkeeB keyboard detail",
+      focalX: 50,
+      focalY: 50,
       url,
       image: new Image(),
       ready: false,
@@ -185,6 +190,7 @@ function syncImages() {
     const thumb = document.createElement("img");
     thumb.src = item.url;
     thumb.alt = "";
+    thumb.style.objectPosition = `${item.focalX}% ${item.focalY}%`;
 
     const body = document.createElement("div");
     body.className = "thumb-body";
@@ -232,6 +238,22 @@ function syncImages() {
       }),
     );
 
+    const cropFields = document.createElement("div");
+    cropFields.className = "thumb-crop-fields";
+    cropFields.append(
+      createRangeField("Kadr X", item.focalX, (value) => {
+        item.focalX = value;
+        thumb.style.objectPosition = `${item.focalX}% ${item.focalY}%`;
+        render();
+      }),
+      createRangeField("Kadr Y", item.focalY, (value) => {
+        item.focalY = value;
+        thumb.style.objectPosition = `${item.focalX}% ${item.focalY}%`;
+        render();
+      }),
+    );
+    fields.append(cropFields);
+
     body.append(titleRow, fields);
     row.append(thumb, body);
     elements.thumbList.append(row);
@@ -250,6 +272,32 @@ function createCaptionField(labelText, value, onInput) {
   input.maxLength = labelText === "Title" ? 56 : 88;
   input.value = value || "";
   input.addEventListener("input", () => onInput(input.value.trim()));
+
+  label.append(caption, input);
+  return label;
+}
+
+function createRangeField(labelText, value, onInput) {
+  const label = document.createElement("label");
+  label.className = "field";
+
+  const caption = document.createElement("span");
+  const output = document.createElement("output");
+  output.textContent = `${value}%`;
+  caption.textContent = labelText;
+  caption.append(" ", output);
+
+  const input = document.createElement("input");
+  input.type = "range";
+  input.min = "0";
+  input.max = "100";
+  input.step = "1";
+  input.value = String(value);
+  input.addEventListener("input", () => {
+    const nextValue = Number(input.value);
+    output.textContent = `${nextValue}%`;
+    onInput(nextValue);
+  });
 
   label.append(caption, input);
   return label;
@@ -353,7 +401,7 @@ function drawHeader(ctx, width, height, pad) {
 }
 
 function measureLogoMark(ctx, height) {
-  const iconWidth = Math.round(height * 1.66);
+  const iconWidth = Math.round(height * logoIconAspect);
   const gap = Math.round(height * 0.18);
   const fontSize = Math.round(height * 0.76);
   ctx.save();
@@ -364,13 +412,13 @@ function measureLogoMark(ctx, height) {
 }
 
 function drawLogoMark(ctx, x, y, height) {
-  const iconWidth = Math.round(height * 1.66);
+  const iconWidth = Math.round(height * logoIconAspect);
   const gap = Math.round(height * 0.18);
   const fontSize = Math.round(height * 0.76);
   const textY = y + Math.round(height * 0.78);
 
   if (logoReady && !logoFailed && !state.forceTextLogo) {
-    const sourceWidth = Math.round(logo.naturalWidth * 0.37);
+    const sourceWidth = Math.round(logo.naturalWidth * logoIconSourceRatio);
     ctx.drawImage(logo, 0, 0, sourceWidth, logo.naturalHeight, x, y, iconWidth, height);
   } else {
     drawFallbackIcon(ctx, x, y, iconWidth, height);
@@ -467,7 +515,7 @@ function drawCaptionedTile(ctx, item, rect, radius, isInsetCard) {
   ctx.clip();
 
   if (item && item.ready) {
-    drawImageCover(ctx, item.image, imageRect.x, imageRect.y, imageRect.w, imageRect.h);
+    drawImageCover(ctx, item.image, imageRect.x, imageRect.y, imageRect.w, imageRect.h, item.focalX, item.focalY);
   } else {
     drawPlaceholder(ctx, imageRect, item);
   }
@@ -689,7 +737,7 @@ function getAutoGrid(count) {
   return { cols, rows: Math.ceil(count / cols) };
 }
 
-function drawImageCover(ctx, image, x, y, width, height) {
+function drawImageCover(ctx, image, x, y, width, height, focalX = 50, focalY = 50) {
   const imageRatio = image.naturalWidth / image.naturalHeight;
   const targetRatio = width / height;
   let sourceWidth = image.naturalWidth;
@@ -699,10 +747,10 @@ function drawImageCover(ctx, image, x, y, width, height) {
 
   if (imageRatio > targetRatio) {
     sourceWidth = image.naturalHeight * targetRatio;
-    sourceX = (image.naturalWidth - sourceWidth) / 2;
+    sourceX = (image.naturalWidth - sourceWidth) * clamp(focalX / 100, 0, 1);
   } else {
     sourceHeight = image.naturalWidth / targetRatio;
-    sourceY = (image.naturalHeight - sourceHeight) / 2;
+    sourceY = (image.naturalHeight - sourceHeight) * clamp(focalY / 100, 0, 1);
   }
 
   ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, x, y, width, height);
@@ -738,6 +786,8 @@ function createPlaceholders() {
     name: `Zdjecie ${index + 1}`,
     title: `Keyboard angle ${index + 1}`,
     subtitle: "Add photo title and subtitle",
+    focalX: 50,
+    focalY: 50,
     ready: false,
   }));
 }
