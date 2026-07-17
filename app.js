@@ -22,12 +22,14 @@ const palette = {
 
 const logoIconAspect = 880 / 424;
 const logoIconSourceRatio = 880 / 1903.9945;
+const storageKey = "funkeeb-collage-studio:settings:v1";
+const savedSettings = loadSettings();
 
 const state = {
   images: [],
-  mode: "grid",
-  ratio: "square",
-  gap: 28,
+  mode: normalizeMode(savedSettings.mode),
+  ratio: normalizeRatio(savedSettings.ratio),
+  gap: normalizeGap(savedSettings.gap),
   forceTextLogo: false,
 };
 
@@ -91,12 +93,14 @@ elements.dropZone.addEventListener("drop", (event) => {
 elements.ratioSelect.addEventListener("change", () => {
   state.ratio = elements.ratioSelect.value;
   render();
+  saveSettings();
 });
 
 elements.gapInput.addEventListener("input", () => {
   state.gap = Number(elements.gapInput.value);
   elements.gapValue.textContent = `${state.gap} px`;
   render();
+  saveSettings();
 });
 
 elements.modeButtons.forEach((button) => {
@@ -104,6 +108,7 @@ elements.modeButtons.forEach((button) => {
     state.mode = button.dataset.mode;
     syncModeButtons();
     render();
+    saveSettings();
   });
 });
 
@@ -131,6 +136,7 @@ elements.clearButton.addEventListener("click", () => {
   state.images = [];
   syncImages();
   render();
+  saveSettings();
 });
 
 function addFiles(fileList) {
@@ -139,13 +145,16 @@ function addFiles(fileList) {
   files.forEach((file) => {
     const url = URL.createObjectURL(file);
     const defaultTitle = makeDefaultTitle(file.name);
+    const signature = createFileSignature(file);
+    const storedImage = getStoredImageSettings(signature);
     const item = {
       id: createId(),
+      signature,
       name: file.name,
-      title: defaultTitle,
-      subtitle: "FunkeeB keyboard detail",
-      focalX: 50,
-      focalY: 50,
+      title: getStoredText(storedImage, "title", defaultTitle),
+      subtitle: getStoredText(storedImage, "subtitle", "FunkeeB keyboard detail"),
+      focalX: normalizePercent(storedImage.focalX),
+      focalY: normalizePercent(storedImage.focalY),
       url,
       image: new Image(),
       ready: false,
@@ -167,6 +176,64 @@ function addFiles(fileList) {
 
   syncImages();
   render();
+  saveSettings();
+}
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function saveSettings() {
+  const images = savedSettings.images && typeof savedSettings.images === "object" ? { ...savedSettings.images } : {};
+
+  state.images.forEach((item) => {
+    if (!item.signature) return;
+    images[item.signature] = {
+      title: item.title || "",
+      subtitle: item.subtitle || "",
+      focalX: normalizePercent(item.focalX),
+      focalY: normalizePercent(item.focalY),
+    };
+  });
+
+  const nextSettings = {
+    version: 1,
+    mode: normalizeMode(state.mode),
+    ratio: normalizeRatio(state.ratio),
+    gap: normalizeGap(state.gap),
+    images,
+  };
+
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(nextSettings));
+    Object.assign(savedSettings, nextSettings);
+  } catch (error) {
+    // Storage can fail in private browsing or when the browser quota is full.
+  }
+}
+
+function getStoredImageSettings(signature) {
+  const images = savedSettings.images;
+  if (!images || typeof images !== "object") return {};
+  const storedImage = images[signature];
+  return storedImage && typeof storedImage === "object" ? storedImage : {};
+}
+
+function createFileSignature(file) {
+  return [file.name, file.size, file.lastModified, file.type].join("|");
+}
+
+function syncControlsFromState() {
+  elements.ratioSelect.value = state.ratio;
+  elements.gapInput.value = String(state.gap);
+  elements.gapValue.textContent = `${state.gap} px`;
 }
 
 function syncModeButtons() {
@@ -231,10 +298,12 @@ function syncImages() {
       createCaptionField("Title", item.title, (value) => {
         item.title = value;
         render();
+        saveSettings();
       }),
       createCaptionField("Subtitle", item.subtitle, (value) => {
         item.subtitle = value;
         render();
+        saveSettings();
       }),
     );
 
@@ -245,11 +314,13 @@ function syncImages() {
         item.focalX = value;
         thumb.style.objectPosition = `${item.focalX}% ${item.focalY}%`;
         render();
+        saveSettings();
       }),
       createRangeField("Kadr Y", item.focalY, (value) => {
         item.focalY = value;
         thumb.style.objectPosition = `${item.focalX}% ${item.focalY}%`;
         render();
+        saveSettings();
       }),
     );
     fields.append(cropFields);
@@ -310,6 +381,7 @@ function moveImage(index, direction) {
   state.images.splice(nextIndex, 0, item);
   syncImages();
   render();
+  saveSettings();
 }
 
 function removeImage(id) {
@@ -319,6 +391,7 @@ function removeImage(id) {
   URL.revokeObjectURL(item.url);
   syncImages();
   render();
+  saveSettings();
 }
 
 function render() {
@@ -811,10 +884,34 @@ function createId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function normalizeMode(value) {
+  return ["grid", "collage", "cards"].includes(value) ? value : "grid";
+}
+
+function normalizeRatio(value) {
+  return Object.prototype.hasOwnProperty.call(ratios, value) ? value : "square";
+}
+
+function normalizeGap(value) {
+  const nextValue = Number(value);
+  return Number.isFinite(nextValue) ? clamp(Math.round(nextValue), 8, 52) : 28;
+}
+
+function normalizePercent(value) {
+  const nextValue = Number(value);
+  return Number.isFinite(nextValue) ? clamp(Math.round(nextValue), 0, 100) : 50;
+}
+
+function getStoredText(source, key, fallback) {
+  if (!Object.prototype.hasOwnProperty.call(source, key)) return fallback;
+  return typeof source[key] === "string" ? source[key].trim() : fallback;
+}
+
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+syncControlsFromState();
 syncModeButtons();
 syncImages();
 render();
