@@ -23,6 +23,8 @@ const palette = {
 const logoIconAspect = 880 / 424;
 const logoIconSourceRatio = 880 / 1903.9945;
 const storageKey = "funkeeb-collage-studio:settings:v1";
+const storedImageMaxSide = 1600;
+const storedImageQuality = 0.78;
 const savedSettings = loadSettings();
 
 const state = {
@@ -132,7 +134,7 @@ elements.downloadButton.addEventListener("click", () => {
 });
 
 elements.clearButton.addEventListener("click", () => {
-  state.images.forEach((item) => URL.revokeObjectURL(item.url));
+  state.images.forEach(revokeImageUrl);
   state.images = [];
   syncImages();
   render();
@@ -147,8 +149,9 @@ function addFiles(fileList) {
     const defaultTitle = makeDefaultTitle(file.name);
     const signature = createFileSignature(file);
     const storedImage = getStoredImageSettings(signature);
-    const item = {
+    const item = createImageItem({
       id: createId(),
+      storageId: createStorageId(signature),
       signature,
       name: file.name,
       title: getStoredText(storedImage, "title", defaultTitle),
@@ -157,27 +160,50 @@ function addFiles(fileList) {
       focalY: normalizePercent(storedImage.focalY),
       rotation: normalizeRotation(storedImage.rotation),
       url,
-      image: new Image(),
-      ready: false,
-    };
+      source: storedImage.source || "",
+      objectUrl: true,
+    });
 
-    item.image.onload = () => {
-      item.ready = true;
-      syncImages();
-      render();
-    };
-    item.image.onerror = () => {
-      item.error = true;
-      syncImages();
-      render();
-    };
-    item.image.src = url;
     state.images.push(item);
+    persistImageSource(file, item);
   });
 
   syncImages();
   render();
   saveSettings();
+}
+
+function createImageItem(options) {
+  const item = {
+    id: options.id,
+    storageId: options.storageId,
+    signature: options.signature,
+    name: options.name,
+    title: options.title,
+    subtitle: options.subtitle,
+    focalX: options.focalX,
+    focalY: options.focalY,
+    rotation: options.rotation,
+    url: options.url,
+    source: options.source || "",
+    objectUrl: Boolean(options.objectUrl),
+    image: new Image(),
+    ready: false,
+  };
+
+  item.image.onload = () => {
+    item.ready = true;
+    syncImages();
+    render();
+  };
+  item.image.onerror = () => {
+    item.error = true;
+    syncImages();
+    render();
+  };
+  item.image.src = item.url;
+
+  return item;
 }
 
 function loadSettings() {
@@ -192,44 +218,171 @@ function loadSettings() {
 }
 
 function saveSettings() {
-  const images = savedSettings.images && typeof savedSettings.images === "object" ? { ...savedSettings.images } : {};
+  if (writeSettings(createSettingsSnapshot(true))) return;
+  writeSettings(createSettingsSnapshot(false));
+}
+
+function createSettingsSnapshot(includeSources) {
+  const images = {};
+  const imageOrder = [];
 
   state.images.forEach((item) => {
-    if (!item.signature) return;
-    images[item.signature] = {
+    const storageId = item.storageId || item.signature || item.id;
+    imageOrder.push(storageId);
+    images[storageId] = {
+      signature: item.signature || storageId,
+      name: item.name || "Saved image",
       title: item.title || "",
       subtitle: item.subtitle || "",
       focalX: normalizePercent(item.focalX),
       focalY: normalizePercent(item.focalY),
       rotation: normalizeRotation(item.rotation),
+      source: includeSources ? item.source || "" : "",
     };
   });
 
-  const nextSettings = {
-    version: 1,
+  return {
+    version: 2,
     mode: normalizeMode(state.mode),
     ratio: normalizeRatio(state.ratio),
     gap: normalizeGap(state.gap),
+    imageOrder,
     images,
   };
+}
 
+function writeSettings(nextSettings) {
   try {
     localStorage.setItem(storageKey, JSON.stringify(nextSettings));
+    Object.keys(savedSettings).forEach((key) => delete savedSettings[key]);
     Object.assign(savedSettings, nextSettings);
+    return true;
   } catch (error) {
     // Storage can fail in private browsing or when the browser quota is full.
+    return false;
   }
 }
 
 function getStoredImageSettings(signature) {
-  const images = savedSettings.images;
-  if (!images || typeof images !== "object") return {};
-  const storedImage = images[signature];
+  const images = getSavedImagesMap();
+  const storedImage = images[signature] || Object.values(images).find((image) => image.signature === signature);
   return storedImage && typeof storedImage === "object" ? storedImage : {};
+}
+
+function getSavedImagesMap() {
+  const images = savedSettings.images;
+  if (!images) return {};
+  if (Array.isArray(images)) {
+    return Object.fromEntries(
+      images
+        .filter((image) => image && typeof image === "object")
+        .map((image, index) => [image.storageId || image.signature || `saved-${index}`, image]),
+    );
+  }
+  return typeof images === "object" ? images : {};
+}
+
+function getSavedImageOrder(images) {
+  const order = Array.isArray(savedSettings.imageOrder) ? savedSettings.imageOrder : [];
+  const orderedIds = order.filter((id) => Object.prototype.hasOwnProperty.call(images, id));
+  const restIds = Object.keys(images).filter((id) => !orderedIds.includes(id));
+  return orderedIds.concat(restIds);
+}
+
+function restoreSavedImages() {
+  const images = getSavedImagesMap();
+  getSavedImageOrder(images).forEach((storageId) => {
+    const storedImage = images[storageId];
+    if (!storedImage || typeof storedImage.source !== "string" || !storedImage.source.startsWith("data:image/")) return;
+
+    const name = storedImage.name || "Saved image";
+    const item = createImageItem({
+      id: createId(),
+      storageId,
+      signature: storedImage.signature || storageId,
+      name,
+      title: getStoredText(storedImage, "title", makeDefaultTitle(name)),
+      subtitle: getStoredText(storedImage, "subtitle", "FunkeeB keyboard detail"),
+      focalX: normalizePercent(storedImage.focalX),
+      focalY: normalizePercent(storedImage.focalY),
+      rotation: normalizeRotation(storedImage.rotation),
+      url: storedImage.source,
+      source: storedImage.source,
+      objectUrl: false,
+    });
+    state.images.push(item);
+  });
+}
+
+async function persistImageSource(file, item) {
+  try {
+    const source = await createStoredImageSource(file);
+    if (!state.images.includes(item)) return;
+    item.source = source;
+    saveSettings();
+  } catch (error) {
+    saveSettings();
+  }
+}
+
+async function createStoredImageSource(file) {
+  const source = await readFileAsDataUrl(file);
+  const image = await loadImageSource(source);
+  return resizeImageForStorage(image);
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImageSource(source) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = source;
+  });
+}
+
+function resizeImageForStorage(image) {
+  const scale = Math.min(1, storedImageMaxSide / Math.max(image.naturalWidth, image.naturalHeight));
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  canvas.width = width;
+  canvas.height = height;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(image, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", storedImageQuality);
 }
 
 function createFileSignature(file) {
   return [file.name, file.size, file.lastModified, file.type].join("|");
+}
+
+function createStorageId(signature) {
+  const usedIds = new Set(state.images.map((item) => item.storageId));
+  const baseId = signature || createId();
+  let storageId = baseId;
+  let index = 2;
+  while (usedIds.has(storageId)) {
+    storageId = `${baseId}#${index}`;
+    index += 1;
+  }
+  return storageId;
+}
+
+function revokeImageUrl(item) {
+  if (item && item.objectUrl) URL.revokeObjectURL(item.url);
 }
 
 function syncControlsFromState() {
@@ -422,7 +575,7 @@ function removeImage(id) {
   const index = state.images.findIndex((item) => item.id === id);
   if (index === -1) return;
   const [item] = state.images.splice(index, 1);
-  URL.revokeObjectURL(item.url);
+  revokeImageUrl(item);
   syncImages();
   render();
   saveSettings();
@@ -969,6 +1122,7 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+restoreSavedImages();
 syncControlsFromState();
 syncModeButtons();
 syncImages();
