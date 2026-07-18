@@ -54,6 +54,8 @@ const context = elements.canvas.getContext("2d");
 const logo = new Image();
 let logoReady = false;
 let logoFailed = false;
+let previewTargets = [];
+let dragState = null;
 
 logo.onload = () => {
   logoReady = true;
@@ -68,6 +70,13 @@ logo.src = "./assets/transparent-logo-v3.svg";
 if (document.fonts) {
   document.fonts.ready.then(render).catch(() => render());
 }
+
+elements.canvas.addEventListener("pointerdown", handleCanvasPointerDown);
+elements.canvas.addEventListener("pointermove", handleCanvasPointerMove);
+elements.canvas.addEventListener("pointerup", finishCanvasDrag);
+elements.canvas.addEventListener("pointercancel", finishCanvasDrag);
+elements.canvas.addEventListener("lostpointercapture", finishCanvasDrag);
+elements.canvas.addEventListener("pointerleave", handleCanvasPointerLeave);
 
 elements.fileInput.addEventListener("change", (event) => {
   addFiles(event.target.files);
@@ -204,6 +213,92 @@ function createImageItem(options) {
   item.image.src = item.url;
 
   return item;
+}
+
+function handleCanvasPointerDown(event) {
+  const target = findPreviewTarget(event);
+  if (!target) return;
+
+  const point = getCanvasPoint(event);
+  event.preventDefault();
+  elements.canvas.setPointerCapture(event.pointerId);
+  dragState = {
+    pointerId: event.pointerId,
+    item: target.item,
+    metrics: target.metrics,
+    startX: point.x,
+    startY: point.y,
+    startFocalX: normalizePercent(target.item.focalX),
+    startFocalY: normalizePercent(target.item.focalY),
+  };
+  elements.canvas.classList.add("is-dragging");
+}
+
+function handleCanvasPointerMove(event) {
+  if (dragState) {
+    if (event.pointerId !== dragState.pointerId) return;
+    const point = getCanvasPoint(event);
+    const deltaX = point.x - dragState.startX;
+    const deltaY = point.y - dragState.startY;
+    const nextX =
+      dragState.metrics.overflowX > 0
+        ? dragState.startFocalX - (deltaX / dragState.metrics.overflowX) * 100
+        : dragState.startFocalX;
+    const nextY =
+      dragState.metrics.overflowY > 0
+        ? dragState.startFocalY - (deltaY / dragState.metrics.overflowY) * 100
+        : dragState.startFocalY;
+
+    event.preventDefault();
+    dragState.item.focalX = roundToTenth(clamp(nextX, 0, 100));
+    dragState.item.focalY = roundToTenth(clamp(nextY, 0, 100));
+    updateThumbPosition(dragState.item);
+    render();
+    return;
+  }
+
+  elements.canvas.classList.toggle("is-draggable", Boolean(findPreviewTarget(event)));
+}
+
+function finishCanvasDrag(event) {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  updateThumbPosition(dragState.item);
+  saveSettings();
+  dragState = null;
+  elements.canvas.classList.remove("is-dragging", "is-draggable");
+}
+
+function handleCanvasPointerLeave() {
+  if (!dragState) elements.canvas.classList.remove("is-draggable");
+}
+
+function findPreviewTarget(event) {
+  const point = getCanvasPoint(event);
+  for (let index = previewTargets.length - 1; index >= 0; index -= 1) {
+    const target = previewTargets[index];
+    if (isPointInRect(point, target.rect)) return target;
+  }
+  return null;
+}
+
+function getCanvasPoint(event) {
+  const rect = elements.canvas.getBoundingClientRect();
+  return {
+    x: ((event.clientX - rect.left) / rect.width) * elements.canvas.width,
+    y: ((event.clientY - rect.top) / rect.height) * elements.canvas.height,
+  };
+}
+
+function isPointInRect(point, rect) {
+  return point.x >= rect.x && point.x <= rect.x + rect.w && point.y >= rect.y && point.y <= rect.y + rect.h;
+}
+
+function updateThumbPosition(item) {
+  const thumb = Array.from(elements.thumbList.querySelectorAll(".thumb-preview img")).find(
+    (image) => image.dataset.itemId === item.id,
+  );
+  if (!thumb) return;
+  thumb.style.objectPosition = `${item.focalX}% ${item.focalY}%`;
 }
 
 function loadSettings() {
@@ -415,6 +510,7 @@ function syncImages() {
     const thumb = document.createElement("img");
     thumb.src = item.url;
     thumb.alt = "";
+    thumb.dataset.itemId = item.id;
     thumb.style.objectPosition = `${item.focalX}% ${item.focalY}%`;
     thumb.style.transform = `rotate(${normalizeRotation(item.rotation)}deg)`;
     thumbFrame.append(thumb);
@@ -467,21 +563,9 @@ function syncImages() {
       }),
     );
 
-    const cropFields = document.createElement("div");
-    cropFields.className = "thumb-crop-fields";
-    cropFields.append(
-      createRangeField("Kadr X", item.focalX, (value) => {
-        item.focalX = value;
-        thumb.style.objectPosition = `${item.focalX}% ${item.focalY}%`;
-        render();
-        saveSettings();
-      }),
-      createRangeField("Kadr Y", item.focalY, (value) => {
-        item.focalY = value;
-        thumb.style.objectPosition = `${item.focalX}% ${item.focalY}%`;
-        render();
-        saveSettings();
-      }),
+    const adjustmentFields = document.createElement("div");
+    adjustmentFields.className = "thumb-adjust-fields";
+    adjustmentFields.append(
       createRotationField(item.rotation, (value) => {
         item.rotation = value;
         thumb.style.transform = `rotate(${item.rotation}deg)`;
@@ -489,7 +573,7 @@ function syncImages() {
         saveSettings();
       }),
     );
-    fields.append(cropFields);
+    fields.append(adjustmentFields);
 
     body.append(titleRow, fields);
     row.append(thumbFrame, body);
@@ -509,32 +593,6 @@ function createCaptionField(labelText, value, onInput) {
   input.maxLength = labelText === "Title" ? 56 : 88;
   input.value = value || "";
   input.addEventListener("input", () => onInput(input.value.trim()));
-
-  label.append(caption, input);
-  return label;
-}
-
-function createRangeField(labelText, value, onInput) {
-  const label = document.createElement("label");
-  label.className = "field";
-
-  const caption = document.createElement("span");
-  const output = document.createElement("output");
-  output.textContent = `${value}%`;
-  caption.textContent = labelText;
-  caption.append(" ", output);
-
-  const input = document.createElement("input");
-  input.type = "range";
-  input.min = "0";
-  input.max = "100";
-  input.step = "1";
-  input.value = String(value);
-  input.addEventListener("input", () => {
-    const nextValue = Number(input.value);
-    output.textContent = `${nextValue}%`;
-    onInput(nextValue);
-  });
 
   label.append(caption, input);
   return label;
@@ -586,6 +644,7 @@ function render() {
   elements.canvas.width = width;
   elements.canvas.height = height;
   elements.canvasSize.textContent = `${width} x ${height}`;
+  previewTargets = [];
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
 
@@ -775,6 +834,7 @@ function drawCaptionedTile(ctx, item, rect, radius, isInsetCard) {
   ctx.clip();
 
   if (item && item.ready) {
+    trackPreviewTarget(item, imageRect);
     drawImageCover(
       ctx,
       item.image,
@@ -796,6 +856,15 @@ function drawCaptionedTile(ctx, item, rect, radius, isInsetCard) {
 
   ctx.restore();
   drawStroke(ctx, rect, palette.border, radius);
+}
+
+function trackPreviewTarget(item, rect) {
+  if (!state.images.includes(item)) return;
+  previewTargets.push({
+    item,
+    rect: { ...rect },
+    metrics: getImageCoverMetrics(item.image, rect.w, rect.h, item.rotation),
+  });
 }
 
 function getCaptionMetrics(rect, item) {
@@ -1008,8 +1077,23 @@ function getAutoGrid(count) {
 }
 
 function drawImageCover(ctx, image, x, y, width, height, focalX = 50, focalY = 50, rotation = 0) {
+  const metrics = getImageCoverMetrics(image, width, height, rotation);
   const normalizedRotation = normalizeRotation(rotation);
-  const quarterTurn = normalizedRotation === 90 || normalizedRotation === 270;
+  const offsetX = (0.5 - clamp(focalX / 100, 0, 1)) * metrics.overflowX;
+  const offsetY = (0.5 - clamp(focalY / 100, 0, 1)) * metrics.overflowY;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, width, height);
+  ctx.clip();
+  ctx.translate(x + width / 2 + offsetX, y + height / 2 + offsetY);
+  ctx.rotate((normalizedRotation * Math.PI) / 180);
+  ctx.drawImage(image, -metrics.drawWidth / 2, -metrics.drawHeight / 2, metrics.drawWidth, metrics.drawHeight);
+  ctx.restore();
+}
+
+function getImageCoverMetrics(image, width, height, rotation = 0) {
+  const quarterTurn = normalizeRotation(rotation) === 90 || normalizeRotation(rotation) === 270;
   const sourceWidth = image.naturalWidth;
   const sourceHeight = image.naturalHeight;
   const rotatedWidth = quarterTurn ? sourceHeight : sourceWidth;
@@ -1019,17 +1103,13 @@ function drawImageCover(ctx, image, x, y, width, height, focalX = 50, focalY = 5
   const drawHeight = sourceHeight * scale;
   const frameWidth = rotatedWidth * scale;
   const frameHeight = rotatedHeight * scale;
-  const offsetX = (0.5 - clamp(focalX / 100, 0, 1)) * Math.max(0, frameWidth - width);
-  const offsetY = (0.5 - clamp(focalY / 100, 0, 1)) * Math.max(0, frameHeight - height);
 
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(x, y, width, height);
-  ctx.clip();
-  ctx.translate(x + width / 2 + offsetX, y + height / 2 + offsetY);
-  ctx.rotate((normalizedRotation * Math.PI) / 180);
-  ctx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
-  ctx.restore();
+  return {
+    drawWidth,
+    drawHeight,
+    overflowX: Math.max(0, frameWidth - width),
+    overflowY: Math.max(0, frameHeight - height),
+  };
 }
 
 function drawStroke(ctx, rect, color, radius) {
@@ -1111,6 +1191,10 @@ function normalizeRotation(value) {
   if (!Number.isFinite(nextValue)) return 0;
   const snapped = Math.round(nextValue / 90) * 90;
   return ((snapped % 360) + 360) % 360;
+}
+
+function roundToTenth(value) {
+  return Math.round(value * 10) / 10;
 }
 
 function getStoredText(source, key, fallback) {

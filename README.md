@@ -23,7 +23,7 @@ Push this folder to a repository and set GitHub Pages to serve it from the repo 
 - uses the light FunkeeB visual style
 - adds the FunkeeB icon and HTML wordmark at the top of the app
 - supports editable title and subtitle text for every photo
-- supports per-photo frame positioning with X/Y crop controls
+- supports per-photo frame positioning by dragging photos in the preview
 - supports per-photo rotation
 - autosaves photos, layout, spacing, captions, crop, and rotation settings in localStorage
 - supports grid, collage, and card layouts

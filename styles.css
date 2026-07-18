@@ -63,6 +63,20 @@ canvas {
   max-width: 100%;
 }
 
+#previewCanvas {
+  cursor: default;
+  touch-action: none;
+  user-select: none;
+}
+
+#previewCanvas.is-draggable {
+  cursor: grab;
+}
+
+#previewCanvas.is-dragging {
+  cursor: grabbing;
+}
+
 .app-shell {
   width: min(100% - 32px, 1480px);
   margin-inline: auto;
@@ -341,9 +355,9 @@ canvas {
   gap: 7px;
 }
 
-.thumb-crop-fields {
+.thumb-adjust-fields {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 7px;
 }
 
@@ -418,8 +432,7 @@ canvas {
   font-weight: 800;
 }
 
-.field input[type="range"],
-.thumb-crop-fields input[type="range"] {
+.field input[type="range"] {
   min-height: 28px;
   accent-color: var(--orange);
   padding: 0;
@@ -544,7 +557,7 @@ canvas {
     justify-content: flex-start;
   }
 
-  .thumb-crop-fields {
+  .thumb-adjust-fields {
     grid-template-columns: 1fr;
   }
 
