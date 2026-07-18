@@ -31,6 +31,7 @@ const state = {
   images: [],
   mode: normalizeMode(savedSettings.mode),
   ratio: normalizeRatio(savedSettings.ratio),
+  background: normalizeBackground(savedSettings.background),
   gap: normalizeGap(savedSettings.gap),
   forceTextLogo: false,
 };
@@ -42,6 +43,7 @@ const elements = {
   imageMeta: document.getElementById("imageMeta"),
   thumbList: document.getElementById("thumbList"),
   ratioSelect: document.getElementById("ratioSelect"),
+  backgroundSelect: document.getElementById("backgroundSelect"),
   gapInput: document.getElementById("gapInput"),
   gapValue: document.getElementById("gapValue"),
   canvasSize: document.getElementById("canvasSize"),
@@ -103,6 +105,12 @@ elements.dropZone.addEventListener("drop", (event) => {
 
 elements.ratioSelect.addEventListener("change", () => {
   state.ratio = elements.ratioSelect.value;
+  render();
+  saveSettings();
+});
+
+elements.backgroundSelect.addEventListener("change", () => {
+  state.background = normalizeBackground(elements.backgroundSelect.value);
   render();
   saveSettings();
 });
@@ -340,6 +348,7 @@ function createSettingsSnapshot(includeSources) {
     version: 2,
     mode: normalizeMode(state.mode),
     ratio: normalizeRatio(state.ratio),
+    background: normalizeBackground(state.background),
     gap: normalizeGap(state.gap),
     imageOrder,
     images,
@@ -482,6 +491,7 @@ function revokeImageUrl(item) {
 
 function syncControlsFromState() {
   elements.ratioSelect.value = state.ratio;
+  elements.backgroundSelect.value = state.background;
   elements.gapInput.value = String(state.gap);
   elements.gapValue.textContent = `${state.gap} px`;
 }
@@ -648,7 +658,7 @@ function render() {
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
 
-  drawBackground(context, width, height);
+  drawBackground(context, width, height, state.background);
 
   const pad = clamp(Math.round(width * 0.055), 44, 92);
   const contentTop = drawHeader(context, width, height, pad);
@@ -670,14 +680,42 @@ function render() {
   }
 }
 
-function drawBackground(ctx, width, height) {
+function drawBackground(ctx, width, height, style) {
+  if (style === "white") {
+    drawWhiteBackground(ctx, width, height);
+    return;
+  }
+
+  drawSoftBase(ctx, width, height);
+
+  if (style === "circles") {
+    drawCircleBackground(ctx, width, height);
+  } else if (style === "lines") {
+    drawLineBackground(ctx, width, height);
+  } else if (style === "squiggles") {
+    drawSquiggleBackground(ctx, width, height);
+  } else if (style === "dots") {
+    drawDotBackground(ctx, width, height);
+  } else {
+    drawFunkeebBackground(ctx, width, height);
+  }
+}
+
+function drawWhiteBackground(ctx, width, height) {
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+}
+
+function drawSoftBase(ctx, width, height) {
   const gradient = ctx.createLinearGradient(0, 0, width, height);
   gradient.addColorStop(0, palette.background);
   gradient.addColorStop(0.62, palette.surfaceLow);
   gradient.addColorStop(1, palette.background);
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
+}
 
+function drawFunkeebBackground(ctx, width, height) {
   ctx.save();
   ctx.globalAlpha = 0.26;
   ctx.strokeStyle = palette.border;
@@ -691,6 +729,112 @@ function drawBackground(ctx, width, height) {
   }
 
   ctx.globalAlpha = 0.2;
+  ctx.fillStyle = palette.orange;
+  ctx.fillRect(0, Math.round(height * 0.12), width, Math.max(8, height * 0.008));
+  ctx.fillStyle = palette.blue;
+  ctx.fillRect(0, Math.round(height * 0.12) + Math.max(8, height * 0.008), width, Math.max(5, height * 0.005));
+  ctx.restore();
+}
+
+function drawCircleBackground(ctx, width, height) {
+  ctx.save();
+  const circles = [
+    { x: 0.15, y: 0.24, r: 0.16, color: palette.blue, alpha: 0.12 },
+    { x: 0.86, y: 0.2, r: 0.11, color: palette.orange, alpha: 0.1 },
+    { x: 0.82, y: 0.82, r: 0.18, color: palette.lime, alpha: 0.1 },
+    { x: 0.18, y: 0.78, r: 0.1, color: palette.orange, alpha: 0.08 },
+  ];
+
+  circles.forEach((circle) => {
+    const radius = Math.min(width, height) * circle.r;
+    ctx.globalAlpha = circle.alpha;
+    ctx.strokeStyle = circle.color;
+    ctx.lineWidth = Math.max(2, width * 0.003);
+    ctx.beginPath();
+    ctx.arc(width * circle.x, height * circle.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = circle.alpha * 0.55;
+    ctx.beginPath();
+    ctx.arc(width * circle.x, height * circle.y, radius * 0.62, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+
+  ctx.restore();
+  drawAccentBand(ctx, width, height, 0.16);
+}
+
+function drawLineBackground(ctx, width, height) {
+  ctx.save();
+  ctx.globalAlpha = 0.18;
+  ctx.lineWidth = Math.max(1, width * 0.0018);
+  ctx.strokeStyle = palette.blue;
+
+  for (let x = -width * 0.25; x < width * 1.25; x += width / 9) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x + width * 0.22, height);
+    ctx.stroke();
+  }
+
+  ctx.globalAlpha = 0.12;
+  ctx.strokeStyle = palette.orange;
+  for (let y = height * 0.18; y < height; y += height / 7) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y + height * 0.045);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+  drawAccentBand(ctx, width, height, 0.18);
+}
+
+function drawSquiggleBackground(ctx, width, height) {
+  ctx.save();
+  ctx.lineWidth = Math.max(2, width * 0.0022);
+  const rows = 5;
+
+  for (let row = 0; row < rows; row += 1) {
+    const y = height * (0.18 + row * 0.16);
+    ctx.globalAlpha = row % 2 === 0 ? 0.14 : 0.1;
+    ctx.strokeStyle = row % 2 === 0 ? palette.orange : palette.blue;
+    ctx.beginPath();
+    ctx.moveTo(-width * 0.05, y);
+
+    for (let x = -width * 0.05; x < width * 1.08; x += width * 0.18) {
+      ctx.bezierCurveTo(x + width * 0.045, y - height * 0.045, x + width * 0.135, y + height * 0.045, x + width * 0.18, y);
+    }
+
+    ctx.stroke();
+  }
+
+  ctx.restore();
+  drawAccentBand(ctx, width, height, 0.14);
+}
+
+function drawDotBackground(ctx, width, height) {
+  ctx.save();
+  const step = Math.max(34, Math.round(width * 0.046));
+  const radius = Math.max(2, Math.round(width * 0.0032));
+
+  for (let y = step * 0.7; y < height; y += step) {
+    for (let x = step * 0.7; x < width; x += step) {
+      const alternate = (Math.round(x / step) + Math.round(y / step)) % 3 === 0;
+      ctx.globalAlpha = alternate ? 0.18 : 0.1;
+      ctx.fillStyle = alternate ? palette.orange : palette.blue;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  ctx.restore();
+  drawAccentBand(ctx, width, height, 0.15);
+}
+
+function drawAccentBand(ctx, width, height, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
   ctx.fillStyle = palette.orange;
   ctx.fillRect(0, Math.round(height * 0.12), width, Math.max(8, height * 0.008));
   ctx.fillStyle = palette.blue;
@@ -1174,6 +1318,10 @@ function normalizeMode(value) {
 
 function normalizeRatio(value) {
   return Object.prototype.hasOwnProperty.call(ratios, value) ? value : "square";
+}
+
+function normalizeBackground(value) {
+  return ["funkeeb", "white", "circles", "lines", "squiggles", "dots"].includes(value) ? value : "funkeeb";
 }
 
 function normalizeGap(value) {

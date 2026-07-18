@@ -21,10 +21,11 @@ Push this folder to a repository and set GitHub Pages to serve it from the repo 
 - renders a FunkeeB-branded PNG on canvas
 - restores the last working set of photos from localStorage
 - uses the light FunkeeB visual style
+- supports multiple background styles
 - adds the FunkeeB icon and HTML wordmark at the top of the app
 - supports editable title and subtitle text for every photo
 - supports per-photo frame positioning by dragging photos in the preview
 - supports per-photo rotation
-- autosaves photos, layout, spacing, captions, crop, and rotation settings in localStorage
+- autosaves photos, layout, background, spacing, captions, crop, and rotation settings in localStorage
 - supports grid, collage, and card layouts
 - maps 4 photos to `2 x 2` and 6 photos to `3 x 2`
